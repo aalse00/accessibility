@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Datepicker</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+
+
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
+    <script type="text/javascript">
+        var buttonImageFile = "https://dequeuniversity.com/assets/images/calendar.png";
+    </script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+
+    <style type="text/css">
+        header {
+            position: relative;
+            text-align: center;
+        }
+        footer {
+            font-size: smaller;
+            margin-top: 2em;
+            text-align: center;
+        }
+        body>div>div, header {
+            margin: 0 auto;
+            max-width: 960px;
+            padding: 0 1em;
+            position: relative;
+        }
+
+        #datepicker {
+            margin: 0;
+            padding: 0;
+            height: 25px;
+            vertical-align: bottom;
+        }
+
+        .ui-datepicker-next:focus,
+        .ui-datepicker-prev:focus {
+            border: 1px solid #999999;
+        }
+        .ui-datepicker-trigger {
+            margin: 2px;
+            padding: 0;
+            vertical-align: bottom;
+        }
+
+        .ui-datepicker-trigger img{
+            width: 25px;
+            height: 25px;
+        }
+        .offscreen {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            clip: rect(1px 1px 1px 1px);
+            clip: rect(1px, 1px, 1px, 1px);
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        button.ui-datepicker-trigger {
+            background-color:transparent !important;
+            border:none !important;
+            margin:auto !important;
+        }
+        button.ui-datepicker-trigger:focus,
+        button.ui-datepicker-trigger:hover,
+        button.ui-datepicker-trigger:active {
+            border:none !important;
+            margin:auto !important;
+            outline:2px solid #8cc63f !important;
+            background-color:#fdf6e7 !important;
+        }
+    </style>
+</head>
+<body>
+<div id="fullContainer">
+    <header role="banner">
+        <h1>Datepicker</h1>
+    </header>
+    <div>
+        <main role="main">
+            <div>
+
+                <label id="datepickerLabel" for="datepicker">Date (mm/dd/yyyy):</label><br>
+                <input type="text" id="datepicker">
+            </div>
+        </main>
+    </div>
+    <footer role="contentinfo">
+        <div>
+            This example is from <a href="https://dequeuniversity.com/">Deque University</a>.
+        </div>
+    </footer>
+</div>
+
+<script type="text/javascript">
+    $(function () {
+        $('#datepicker').datepicker({
+            showOn: 'button',
+            buttonImage: 'https://dequeuniversity.com/assets/images/calendar.png', // File (and file path) for the calendar image
+            buttonImageOnly: false,
+            buttonText: 'calendar',
+            showButtonPanel: true,
+            dayNamesShort: [ "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" ],
+            closeText: 'Close',
+            onClose: removeAria
+        });
+
+        // Add aria-describedby to the button referring to the label
+        $('.ui-datepicker-trigger').attr('aria-describedby', 'datepickerLabel');
+        //$('.ui-datepicker-trigger')[0].innerHTML = '<i class="fa fa-calendar fa-lg"></i>';
+
+        handleCalendarClick();
+    });
+
+
+    function handleCalendarClick() {
+        $('.ui-datepicker-trigger').click(function () {
+            setTimeout(function () {
+
+                // Focus today or active date or default date
+                var currentDate = $('.ui-datepicker-today a')[0];
+
+                if (!currentDate) {
+                    currentDate = $('.ui-state-active')[0] ||
+                        $('.ui-state-default')[0];
+                }
+
+                currentDate.focus();
+
+                // Hide the page behind the datepicker from screen readers to prevent document navigation
+                $("main").attr('id', 'dp-container');
+                $("#dp-container").attr('aria-hidden', 'true');
+                $("#skipnav").attr('aria-hidden', 'true');
+
+                handleDatePick();
+
+                $(document).on('click', '#ui-datepicker-div .ui-datepicker-close', function () {
+                    closeCalendar();
+                });
+            }, 0);
+        });
+    }
+
+    function handleDatePick() {
+        var activeDate;
+        var container = document.getElementById('ui-datepicker-div');
+        var input = document.getElementById('datepicker');
+
+        if (!container || !input) {
+            return;
+        }
+
+        container.setAttribute('role', 'application');
+        container.setAttribute('aria-label', 'Calendar view date-picker');
+
+        var prev = $('.ui-datepicker-prev', container)[0],
+            next = $('.ui-datepicker-next', container)[0];
+
+
+        // This is the line that needs to be fixed for use on pages with base URL set in head
+        next.href = 'javascript:void(0)';
+        prev.href = 'javascript:void(0)';
+
+        next.setAttribute('role', 'button');
+        next.removeAttribute('title');
+        prev.setAttribute('role', 'button');
+        prev.removeAttribute('title');
+
+        //attach individual click listeners to the prev and next month buttons each time they are added to the DOM
+        $(next).on('click', handleNextClick);
+        $(prev).on('click', handlePrevClick);
+
+        $(container).on('keydown', function calendarKeyboardListener(keyEvent) {
+            var which = keyEvent.which;
+            var target = keyEvent.target;
+            var dateCurrent = getCurrentDate(container);
+
+            if (!dateCurrent) {
+                dateCurrent = $('a.ui-state-default')[0];
+                setHighlightState(dateCurrent, container);
+            }
+
+            if (27 === which) { // Esc button - close calendar
+                keyEvent.stopPropagation();
+                return closeCalendar();
+            } else if (which === 9 && keyEvent.shiftKey) { // SHIFT + TAB
+                keyEvent.preventDefault();
+                if ($(target).hasClass('ui-datepicker-close')) { // close button
+                    $('.ui-datepicker-prev')[0].focus();
+                } else if ($(target).hasClass('ui-state-default')) { // Date
+                    $('.ui-datepicker-close')[0].focus();
+                } else if ($(target).hasClass('ui-datepicker-prev')) { // prev button
+                    $('.ui-datepicker-next')[0].focus();
+                } else if ($(target).hasClass('ui-datepicker-next')) { // next button
+                    activeDate = $('.ui-state-highlight') ||
+                        $('.ui-state-active')[0];
+                    if (activeDate) {
+                        activeDate.focus();
+                    }
+                }
+            } else if (which === 9) { // TAB
+                keyEvent.preventDefault();
+                if ($(target).hasClass('ui-datepicker-close')) { // close button
+                    activeDate = $('.ui-state-highlight') ||
+                        $('.ui-state-active')[0];
+                    if (activeDate) {
+                        activeDate.focus();
+                    }
+                } else if ($(target).hasClass('ui-state-default')) {
+                    $('.ui-datepicker-next')[0].focus();
+                } else if ($(target).hasClass('ui-datepicker-next')) {
+                    $('.ui-datepicker-prev')[0].focus();
+                } else if ($(target).hasClass('ui-datepicker-prev')) {
+                    $('.ui-datepicker-close')[0].focus();
+                }
+            } else if (which === 37) { // LEFT arrow key
+                if (dateHasFocus(target)) {
+                    keyEvent.preventDefault();
+                    handleLeftArrowKeyPress(target);
+                }
+            } else if (which === 39) { // RIGHT arrow key
+                if (dateHasFocus(target)) {
+                    keyEvent.preventDefault();
+                    handleRightArrowKeyPress(target);
+                }
+            } else if (which === 38) { // UP arrow key
+                if (dateHasFocus(target)) {
+                    keyEvent.preventDefault();
+                    handleUpArrowKeyPress(target, container, prev);
+                }
+            } else if (which === 40) { // DOWN arrow key
+                if (dateHasFocus(target)) {
+                    keyEvent.preventDefault();
+                    handleDownArrowKeyPress(target, container, next);
+                }
+            } else if (which === 13) { // ENTER
+                if ($(target).hasClass('ui-state-default')) {
+                    setTimeout(function () {
+                        closeCalendar();
+                    }, 100);
+                } else if ($(target).hasClass('ui-datepicker-prev')) {
+                    handlePrevClick();
+                } else if ($(target).hasClass('ui-datepicker-next')) {
+                    handleNextClick();
+                }
+            } else if (32 === which) {
+                if ($(target).hasClass('ui-datepicker-prev') || $(target).hasClass('ui-datepicker-next')) {
+                    target.click();
+                }
+            } else if (33 === which) { // PAGE UP
+                moveOneMonth(target, 'prev');
+            } else if (34 === which) { // PAGE DOWN
+                moveOneMonth(target, 'next');
+            } else if (36 === which) { // HOME
+                var firstOfMonth = $(target).closest('tbody').find('.ui-state-default')[0];
+                if (firstOfMonth) {
+                    firstOfMonth.focus();
+                    setHighlightState(firstOfMonth, $('#ui-datepicker-div')[0]);
+                }
+            } else if (35 === which) { // END
+                var $daysOfMonth = $(target).closest('tbody').find('.ui-state-default');
+                var lastDay = $daysOfMonth[$daysOfMonth.length - 1];
+                if (lastDay) {
+                    lastDay.focus();
+                    setHighlightState(lastDay, $('#ui-datepicker-div')[0]);
+                }
+            }
+            $(".ui-datepicker-current").hide();
+        });
+    }
+
+    function dateHasFocus(target) {
+        return !$(target).hasClass('ui-datepicker-close') && $(target).hasClass('ui-state-default');
+    }
+
+    function closeCalendar() {
+        var container = $('#ui-datepicker-div');
+        $(container).off('keydown');
+        var input = $('#datepicker')[0];
+        $(input).datepicker('hide');
+
+        input.focus();
+    }
+
+    function removeAria() {
+        // make the rest of the page accessible again:
+        $("#dp-container").removeAttr('aria-hidden');
+        $("#skipnav").removeAttr('aria-hidden');
+    }
+
+    function moveOneMonth(currentDate, direction) {
+        var button = (direction === 'next') ? $('.ui-datepicker-next')[0] : $('.ui-datepicker-prev')[0];
+
+        if (!button) {
+            return;
+        }
+
+        var ENABLED_SELECTOR = '#ui-datepicker-div tbody td:not(.ui-state-disabled)';
+        var $currentCells = $(ENABLED_SELECTOR);
+        var currentIndex = $.inArray(currentDate.parentNode, $currentCells);
+
+        button.click();
+        setTimeout(function () {
+            updateHeaderElements();
+
+            var $newCells = $(ENABLED_SELECTOR);
+            var newTd = $newCells[currentIndex];
+            var newAnchor = newTd && $(newTd).find('a')[0];
+
+            while (!newAnchor) {
+                currentIndex--;
+                newTd = $newCells[currentIndex];
+                newAnchor = newTd && $(newTd).find('a')[0];
+            }
+
+            setHighlightState(newAnchor, $('#ui-datepicker-div')[0]);
+            newAnchor.focus();
+        }, 0);
+
+    }
+
+    function handleNextClick() {
+        setTimeout(function () {
+            updateHeaderElements();
+            prepHighlightState();
+            $('.ui-datepicker-next').focus();
+            $(".ui-datepicker-current").hide();
+        }, 0);
+    }
+
+    function handlePrevClick() {
+        setTimeout(function () {
+            updateHeaderElements();
+            prepHighlightState();
+            $('.ui-datepicker-prev').focus();
+            $(".ui-datepicker-current").hide();
+        }, 0);
+    }
+
+    function handleLeftArrowKeyPress(dateLink) {
+        var container = document.getElementById('ui-datepicker-div');
+        if (!dateLink) {
+            return;
+        }
+        var td = $(dateLink).closest('td');
+        if (!td) {
+            return;
+        }
+
+        var prevTd = $(td).prev(),
+            prevDateLink = $('a.ui-state-default', prevTd)[0];
+
+        if (prevTd && prevDateLink) {
+            setHighlightState(prevDateLink, container);
+            prevDateLink.focus();
+        } else {
+            findAndSelectPreviousDate(dateLink);
+        }
+    }
+
+    function findAndSelectPreviousDate(target) {
+        var container = document.getElementById('ui-datepicker-div');
+        if (!target) {
+            return;
+        }
+        var currentRow = $(target).closest('tr');
+        if (!currentRow) {
+            return;
+        }
+        var previousRow = $(currentRow).prev();
+
+        if (!previousRow || previousRow.length === 0) {
+            // there is no previous row, so we go to previous month
+            goToPreviousMonth();
+        } else {
+            var prevRowDates = $('td a.ui-state-default', previousRow);
+            var prevRowDate = prevRowDates[prevRowDates.length - 1];
+
+            if (prevRowDate) {
+                setTimeout(function () {
+                    setHighlightState(prevRowDate, container);
+                    prevRowDate.focus();
+                }, 0);
+            }
+        }
+    }
+
+    function goToPreviousMonth() {
+        var prevLink = $('.ui-datepicker-prev')[0];
+        var container = document.getElementById('ui-datepicker-div');
+        prevLink.click();
+        // focus last day of new month
+        setTimeout(function () {
+            var trs = $('tr', container),
+                lastRowTdLinks = $('td a.ui-state-default', trs[trs.length - 1]),
+                lastDate = lastRowTdLinks[lastRowTdLinks.length - 1];
+
+            updateHeaderElements();
+
+            setHighlightState(lastDate, container);
+            lastDate.focus();
+
+        }, 0);
+    }
+
+    function handleRightArrowKeyPress(dateLink) {
+        var container = document.getElementById('ui-datepicker-div');
+        if (!dateLink) {
+            return;
+        }
+        var td = $(dateLink).closest('td');
+        if (!td) {
+            return;
+        }
+        var nextTd = $(td).next(),
+            nextDateLink = $('a.ui-state-default', nextTd)[0];
+
+        if (nextTd && nextDateLink) {
+            setHighlightState(nextDateLink, container);
+            nextDateLink.focus(); // the next day (same row)
+        } else {
+            findAndSelectNextDate(dateLink);
+        }
+    }
+
+    function findAndSelectNextDate(target) {
+        var container = document.getElementById('ui-datepicker-div');
+        if (!target) {
+            return;
+        }
+        var currentRow = $(target).closest('tr'),
+            nextRow = $(currentRow).next();
+
+        if (!nextRow || nextRow.length === 0) {
+            goToNextMonth();
+        } else {
+            var nextRowFirstDate = $('a.ui-state-default', nextRow)[0];
+            if (nextRowFirstDate) {
+                setHighlightState(nextRowFirstDate, container);
+                nextRowFirstDate.focus();
+            }
+        }
+    }
+
+    function goToNextMonth() {
+        var nextMonth = $('.ui-datepicker-next')[0];
+        var container = document.getElementById('ui-datepicker-div');
+        nextMonth.click();
+        // focus the first day of the new month
+        setTimeout(function () {
+            updateHeaderElements();
+
+            var firstDate = $('a.ui-state-default', container)[0];
+            setHighlightState(firstDate, container);
+            firstDate.focus();
+        }, 0);
+    }
+
+    function handleUpArrowKeyPress(target, cont, prevLink) {
+        prevLink = $('.ui-datepicker-prev')[0];
+        var rowContext = $(target).closest('tr');
+        if (!rowContext) {
+            return;
+        }
+        var rowTds = $('td', rowContext),
+            rowLinks = $('a.ui-state-default', rowContext),
+            targetIndex = $.inArray(target, rowLinks),
+            prevRow = $(rowContext).prev(),
+            prevRowTds = $('td', prevRow),
+            parallel = prevRowTds[targetIndex],
+            linkCheck = $('a.ui-state-default', parallel)[0];
+
+        if (prevRow && parallel && linkCheck) {
+            // there is a previous row, a td at the same index
+            // of the target AND theres a link in that td
+            setHighlightState(linkCheck, cont);
+            linkCheck.focus();
+        } else {
+            // we're either on the first row of a month, or we're on the
+            // second and there is not a date link directly above the target
+            prevLink.click();
+            setTimeout(function () {
+                updateHeaderElements();
+                var newRows = $('tr', cont),
+                    lastRow = newRows[newRows.length - 1],
+                    lastRowTds = $('td', lastRow),
+                    tdParallelIndex = $.inArray(target.parentNode, rowTds),
+                    newParallel = lastRowTds[tdParallelIndex],
+                    newCheck = $('a.ui-state-default', newParallel)[0];
+
+                if (lastRow && newParallel && newCheck) {
+                    setHighlightState(newCheck, cont);
+                    newCheck.focus();
+                } else {
+                    // theres no date link on the last week (row) of the new month
+                    // meaning its an empty cell, so we'll try the 2nd to last week
+                    var secondLastRow = newRows[newRows.length - 2],
+                        secondTds = $('td', secondLastRow),
+                        targetTd = secondTds[tdParallelIndex],
+                        linkCheck = $('a.ui-state-default', targetTd)[0];
+
+                    if (linkCheck) {
+                        setHighlightState(linkCheck, cont);
+                        linkCheck.focus();
+                    }
+                }
+            }, 0);
+        }
+    }
+
+    function handleDownArrowKeyPress(target, cont, nextLink) {
+        nextLink = $('.ui-datepicker-next')[0];
+        var targetRow = $(target).closest('tr');
+        if (!targetRow) {
+            return;
+        }
+        var targetCells = $('td', targetRow),
+            cellIndex = $.inArray(target.parentNode, targetCells), // the td (parent of target) index
+            nextRow = $(targetRow).next(),
+            nextRowCells = $('td', nextRow),
+            nextWeekTd = nextRowCells[cellIndex],
+            nextWeekCheck = $('a.ui-state-default', nextWeekTd)[0];
+
+        if (nextRow && nextWeekTd && nextWeekCheck) {
+            // theres a next row, a TD at the same index of `target`,
+            // and theres an anchor within that td
+            setHighlightState(nextWeekCheck, cont);
+            nextWeekCheck.focus();
+        } else {
+            nextLink.click();
+
+            setTimeout(function () {
+                updateHeaderElements();
+
+                var nextMonthTrs = $('tbody tr', cont),
+                    firstTds = $('td', nextMonthTrs[0]),
+                    firstParallel = firstTds[cellIndex],
+                    firstCheck = $('a.ui-state-default', firstParallel)[0];
+
+                if (firstParallel && firstCheck) {
+                    setHighlightState(firstCheck, cont);
+                    firstCheck.focus();
+                } else {
+                    // lets try the second row b/c we didnt find a
+                    // date link in the first row at the target's index
+                    var secondRow = nextMonthTrs[1],
+                        secondTds = $('td', secondRow),
+                        secondRowTd = secondTds[cellIndex],
+                        secondCheck = $('a.ui-state-default', secondRowTd)[0];
+
+                    if (secondRow && secondCheck) {
+                        setHighlightState(secondCheck, cont);
+                        secondCheck.focus();
+                    }
+                }
+            }, 0);
+        }
+    }
+
+    function updateHeaderElements() {
+        var context = document.getElementById('ui-datepicker-div');
+        if (!context) {
+            return;
+        }
+
+        prev = $('.ui-datepicker-prev', context)[0];
+        next = $('.ui-datepicker-next', context)[0];
+
+        next.href = 'javascript:void(0)';
+        prev.href = 'javascript:void(0)';
+
+        next.setAttribute('role', 'button');
+        prev.setAttribute('role', 'button');
+
+        $(next).on('click', handleNextClick);
+        $(prev).on('click', handlePrevClick);
+    }
+
+
+    function prepHighlightState() {
+        var highlight;
+        var cage = document.getElementById('ui-datepicker-div');
+        highlight = $('.ui-state-highlight', cage)[0] ||
+            $('.ui-state-default', cage)[0];
+        if (highlight && cage) {
+            setHighlightState(highlight, cage);
+        }
+    }
+
+    function setHighlightState(newHighlight, container) {
+        var prevHighlight = getCurrentDate(container);
+        $(prevHighlight).removeClass('ui-state-highlight');
+        $(newHighlight).addClass('ui-state-highlight');
+    }
+
+    function getCurrentDate(container) {
+        return $('.ui-state-highlight', container)[0];
+    }
+</script>
+</body>
+</html>
